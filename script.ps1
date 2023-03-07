@@ -110,9 +110,9 @@ while ($true)
         {
             Write-Host "Edit File"
             $filename = Read-Host "Enter the Filepath"
-#            Open-EditorFile $filename
-#            # this doesn't work on linux
-#            # notepad.exe $filename:x:x
+            #            Open-EditorFile $filename
+            #            # this doesn't work on linux
+            #            # notepad.exe $filename:x:x
             open $filename
             Write-Host "Open File"
         }
@@ -148,7 +148,8 @@ while ($true)
         {
             Write-Host "Zip File"
             $filepath = Read-Host "Enter path to file that needs to be zipped"
-            Compress-Archive -Path $filepath -DestinationPath "$filepath.zip"
+            $currentDirectory = Get-Location
+            Compress-Archive -Path $filepath -DestinationPath "$currentDirectory\$filepath.zip"
             Write-Host "File zipped"
         }
         8
@@ -156,7 +157,8 @@ while ($true)
             Write-Host "Unzip File"
             $filepath = Read-Host "Enter path to zip"
             $newFilePath = $filepath -replace ".zip", ""
-            Expand-Archive -Path $filepath -DestinationPath $newFilePath
+            $currentDirectory = Get-Location
+            Expand-Archive -Path $filepath -DestinationPath "$currentDirectory\$newFilePath"
             Write-Host "File unzipped"
         }
         9
