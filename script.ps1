@@ -149,16 +149,79 @@ while ($true)
             Write-Host "Zip File"
             $filepath = Read-Host "Enter path to file that needs to be zipped"
             $currentDirectory = Get-Location
-            Compress-Archive -Path $filepath -DestinationPath "$currentDirectory\$filepath.zip"
+
+            # ask if user wants to zip with password
+            $zipWithPassword = Read-Host "Do you want to zip with password? (y/n)"
+            if ($zipWithPassword -eq "y")
+            {
+                $password = Read-Host "Enter password" -AsSecureString
+
+                Compress-Archive -Path $filepath -DestinationPath "$currentDirectory/$filepath.zip"
+                $encryptedFile = "$currentDirectory/$filepath.zip"
+                Write-Host "Encrypted file: $encryptedFile"
+                $zipFileAsBytesString = [System.Convert]::ToBase64String([System.IO.File]::ReadAllBytes($encryptedFile))
+                Write-Host "Zip file as bytes string: $zipFileAsBytesString"
+                $base64String = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($zipFileAsBytesString))
+                Write-Host "Base64 string: $base64String"
+                $bitshiftedString = ""
+                for ($i = 0; $i -lt $base64String.Length; $i++)
+                {
+                    $bitshiftedString += [char]([int]$base64String[$i] -bxor $password.Length)
+                }
+                Write-Host "Bitshifted string: $bitshiftedString"
+                Write-Host "Bytes string encrypted with password: $bytesStringEncryptedWithPassword"
+                $bitshiftedString | Out-File "$currentDirectory/$filepath.zip.enc"
+                Write-Host "Encrypted file saved to: $currentDirectory/$filepath.zip.enc"
+            }
+            else
+            {
+                Compress-Archive -Path $filepath -DestinationPath "$currentDirectory/$filepath.zip"
+            }
+
+#            Compress-Archive -Path $filepath -DestinationPath "$currentDirectory\$filepath.zip"
+#            # make a second zip file with password and encryption
+#            Compress-Archive -Path $filepath -DestinationPath "$currentDirectory\$filepath.zip" -Password "password" -EncryptionAlgorithm AES256
             Write-Host "File zipped"
         }
         8
         {
             Write-Host "Unzip File"
+            $currentDirectory = Get-Location
             $filepath = Read-Host "Enter path to zip"
             $newFilePath = $filepath -replace ".zip", ""
-            $currentDirectory = Get-Location
-            Expand-Archive -Path $filepath -DestinationPath "$currentDirectory\$newFilePath"
+
+            # check if the file is encrypted (has .enc extension)
+            if ($filepath.EndsWith(".enc"))
+            {
+                # ask for password
+                $password = Read-Host "Enter password" -AsSecureString
+
+                # read the encrypted file
+                $encryptedFile = Get-Content $filepath
+                Write-Host "Encrypted file: $encryptedFile"
+                $bitshiftedString = ""
+                for ($i = 0; $i -lt $encryptedFile.Length; $i++)
+                {
+                    $bitshiftedString += [char]([int]$encryptedFile[$i] -bxor $password.Length)
+                }
+                Write-Host "Bitshifted string: $bitshiftedString"
+                $base64String = [System.Convert]::FromBase64String($bitshiftedString)
+                Write-Host "Base64 string: $base64String"
+                $zipFileAsBytesString = [System.Text.Encoding]::UTF8.GetString($base64String)
+                Write-Host "Zip file as bytes string: $zipFileAsBytesString"
+                $zipFileAsBytes = [System.Convert]::FromBase64String($zipFileAsBytesString)
+                Write-Host "Zip file as bytes: $zipFileAsBytes"
+                $zipFile = [System.IO.Path]::GetTempFileName()
+                Write-Host "Zip file: $zipFile"
+                [System.IO.File]::WriteAllBytes($zipFile, $zipFileAsBytes)
+                Write-Host "Zip file saved to: $zipFile"
+                $cleanedFilePath = $newFilePath -replace ".enc", ""
+                Expand-Archive -Path $zipFile -DestinationPath "$currentDirectory/$cleanedFilePath"
+                Write-Host "File unzipped"
+                return
+            }
+
+            Expand-Archive -Path $filepath -DestinationPath "$currentDirectory/$newFilePath"
             Write-Host "File unzipped"
         }
         9
