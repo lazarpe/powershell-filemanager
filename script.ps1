@@ -110,10 +110,18 @@ while ($true)
         {
             Write-Host "Edit File"
             $filename = Read-Host "Enter the Filepath"
+            if ($IsWindows)
+            {
+                notepad.exe $filename
+            }
+            else
+            {
+                open $filename
+            }
             #            Open-EditorFile $filename
             #            # this doesn't work on linux
             #            # notepad.exe $filename:x:x
-            open $filename
+#            open $filename
             Write-Host "Open File"
         }
         3
@@ -171,6 +179,7 @@ while ($true)
                 Write-Host "Bitshifted string: $bitshiftedString"
                 Write-Host "Bytes string encrypted with password: $bytesStringEncryptedWithPassword"
                 $bitshiftedString | Out-File "$currentDirectory/$filepath.zip.enc"
+                Remove-Item $encryptedFile -Force
                 Write-Host "Encrypted file saved to: $currentDirectory/$filepath.zip.enc"
             }
             else
@@ -218,7 +227,7 @@ while ($true)
                 $cleanedFilePath = $newFilePath -replace ".enc", ""
                 Expand-Archive -Path $zipFile -DestinationPath "$currentDirectory/$cleanedFilePath"
                 Write-Host "File unzipped"
-                return
+                break
             }
 
             Expand-Archive -Path $filepath -DestinationPath "$currentDirectory/$newFilePath"
