@@ -1,11 +1,5 @@
+# this function will return true if the file exists and false if it doesn't
 function Get-If-File-Exists($filepath)
 {
-    if (Test-Path $filepath)
-    {
-        return $true
-    }
-    else
-    {
-        return $false
-    }
+    return Test-Path $filepath
 }

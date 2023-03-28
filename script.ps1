@@ -1,17 +1,19 @@
 $basePath = Get-Location
 
-# Replace this with your own paths
+# TODO: Replace this with your own paths
 $functionPaths = @(
 "$basePath/IdeaProjects/powershell-filemanager/io.ps1",
 "$basePath/IdeaProjects/powershell-filemanager/validation.ps1"
 )
 
+# Import all functions from the files
 foreach ($functionPath in $functionPaths)
 {
     Write-Host "Importing functions from $functionPath"
     . $functionPath
 }
 
+# The main loop of the script that keeps running until the user exits
 while ($true)
 {
     Write-Menu
@@ -37,18 +39,17 @@ while ($true)
                     throw "File doesn't exist"
                 }
 
+                # This works differently on windows and linux
                 if ($IsWindows)
                 {
+                    # On windows, we can use notepad.exe
                     notepad.exe $filename
                 }
                 else
                 {
+                    # On linux, we can use the open command
                     open $filename
                 }
-                #            Open-EditorFile $filename
-                #            # this doesn't work on linux
-                #            # notepad.exe $filename:x:x
-                #            open $filename
                 Write-Host "Open File"
             }
             3
@@ -66,6 +67,7 @@ while ($true)
                     throw "File already exists"
                 }
 
+                # Rename the file
                 Rename-Item -Path $oldFilePath -NewName $newFilePath
                 Write-Host "Moved File"
             }
@@ -79,12 +81,14 @@ while ($true)
                     throw "File doesn't exist"
                 }
 
+                # Delete the file
                 Remove-Item -Path $filepath
                 Write-Host "Deleted File"
             }
             5
             {
                 Write-Host "List Files"
+                # List all files in the current directory
                 Get-ChildItem
                 Write-Host "Listed Files"
             }
@@ -98,6 +102,7 @@ while ($true)
                     throw "Directory doesn't exist"
                 }
 
+                # Change the directory
                 Set-Location $newDirectoryPath
                 Write-Host "Changed Directory"
             }
@@ -117,34 +122,44 @@ while ($true)
                 $zipWithPassword = Read-Host "Do you want to zip with password? (y/n)"
                 if ($zipWithPassword -eq "y")
                 {
-                    $password = Read-Host "Enter password" -AsSecureString
+                    $password = Read-Host "Enter password"
 
-                    Compress-Archive -Path $filepath -DestinationPath "$currentDirectory/$filepath.zip"
-                    $encryptedFile = "$currentDirectory/$filepath.zip"
-                    Write-Host "Encrypted file: $encryptedFile"
-                    $zipFileAsBytesString = [System.Convert]::ToBase64String([System.IO.File]::ReadAllBytes($encryptedFile))
-                    Write-Host "Zip file as bytes string: $zipFileAsBytesString"
-                    $base64String = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($zipFileAsBytesString))
-                    Write-Host "Base64 string: $base64String"
+                    $compressedFilePath = "$currentDirectory/$filepath.zip"
+                    Compress-Archive -Path $filepath -DestinationPath $compressedFilePath
+
+                    $memoryStream = [System.IO.MemoryStream]::new([byte[]][char[]]$password)
+                    $md5Hash = (Get-FileHash -InputStream $memoryStream -Algorithm SHA256).Hash
+                    $md5HashOnlyNumbers = [System.Text.RegularExpressions.Regex]::Replace($md5Hash, "[^0-9]", "")
+
+                    $selectedFileAsBytes = [System.IO.File]::ReadAllBytes($compressedFilePath)
+                    $byteArray = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($selectedFileAsBytes))
+
                     $bitshiftedString = ""
-                    for ($i = 0; $i -lt $base64String.Length; $i++)
+
+                    $bxor = $md5HashOnlyNumbers
+                    if ($bxor.Length -gt 10)
                     {
-                        $bitshiftedString += [char]([int]$base64String[$i] -bxor $password.Length * $base64String.Length)
+                        $bxor = [int]$bxor.ToString().Substring(0, 9)
                     }
-                    Write-Host "Bitshifted string: $bitshiftedString"
-                    Write-Host "Bytes string encrypted with password: $bytesStringEncryptedWithPassword"
+                    # it should be a int32, if not truncate it
+                    if ($bxor -gt [char]::MaxValue)
+                    {
+                        $bxor = $bxor % [char]::MaxValue
+                    }
+
+                    Write-Host "Bxor: $bxor"
+                    for ($i = 0; $i -lt $byteArray.Length; $i++)
+                    {
+                        $bitshiftedString += [char]([int]$byteArray[$i] -bxor $bxor)
+                    }
+
                     $bitshiftedString | Out-File "$currentDirectory/$filepath.zip.enc"
-                    Remove-Item $encryptedFile -Force
-                    Write-Host "Encrypted file saved to: $currentDirectory/$filepath.zip.enc"
                 }
                 else
                 {
                     Compress-Archive -Path $filepath -DestinationPath "$currentDirectory/$filepath.zip"
                 }
 
-                #            Compress-Archive -Path $filepath -DestinationPath "$currentDirectory\$filepath.zip"
-                #            # make a second zip file with password and encryption
-                #            Compress-Archive -Path $filepath -DestinationPath "$currentDirectory\$filepath.zip" -Password "password" -EncryptionAlgorithm AES256
                 Write-Host "File zipped"
             }
             8
@@ -164,29 +179,41 @@ while ($true)
                 if ( $filepath.EndsWith(".enc"))
                 {
                     # ask for password
-                    $password = Read-Host "Enter password" -AsSecureString
+                    $password = Read-Host "Enter password"
+                    $memoryStream = [System.IO.MemoryStream]::new([byte[]][char[]]$password)
+                    $md5Hash = (Get-FileHash -InputStream $memoryStream -Algorithm SHA256).Hash
+                    $md5HashOnlyNumbers = [System.Text.RegularExpressions.Regex]::Replace($md5Hash, "[^0-9]", "")
 
                     # read the encrypted file
-                    $encryptedFile = Get-Content $filepath
-                    Write-Host "Encrypted file: $encryptedFile"
+                    $byteArray = Get-Content $filepath
                     $bitshiftedString = ""
-                    for ($i = 0; $i -lt $encryptedFile.Length; $i++)
+
+                    $bxor = $md5HashOnlyNumbers
+                    if ($bxor.Length -gt 10)
                     {
-                        $bitshiftedString += [char]([int]$encryptedFile[$i] -bxor $password.Length * $base64String.Length)
+                        $bxor = [int]$bxor.ToString().Substring(0, 9)
                     }
-                    Write-Host "Bitshifted string: $bitshiftedString"
-                    $base64String = [System.Convert]::FromBase64String($bitshiftedString)
-                    Write-Host "Base64 string: $base64String"
-                    $zipFileAsBytesString = [System.Text.Encoding]::UTF8.GetString($base64String)
-                    Write-Host "Zip file as bytes string: $zipFileAsBytesString"
-                    $zipFileAsBytes = [System.Convert]::FromBase64String($zipFileAsBytesString)
-                    Write-Host "Zip file as bytes: $zipFileAsBytes"
+                    # it should be a int32, if not truncate it
+                    if ($bxor -gt [char]::MaxValue)
+                    {
+                        $bxor = $bxor % [char]::MaxValue
+                    }
+
+                    Write-Host "Bxor: $bxor"
+                    for ($i = 0; $i -lt $byteArray.Length; $i++)
+                    {
+                        $bitshiftedString += [char]([int]$byteArray[$i] -bxor $bxor)
+                    }
+                    $byteArray = [System.Convert]::FromBase64String($bitshiftedString)
+                    #                    Write-Host [System.Text.Encoding]::UTF8.GetString($byteArray).GetType()
+                    #                    $zipFileAsBytesString = [System.Text.Encoding]::UTF8.GetString($byteArray)
+                    #                    Write-Host "Zip file as bytes string: $zipFileAsBytesString"
+                    #                    $zipFileAsBytes = [System.Text.Encoding]::UTF8.GetBytes($byteArray)
+                    #                    Write-Host "Zip file as bytes: $zipFileAsBytes"
                     $zipFile = [System.IO.Path]::GetTempFileName()
-                    Write-Host "Zip file: $zipFile"
-                    [System.IO.File]::WriteAllBytes($zipFile, $zipFileAsBytes)
-                    Write-Host "Zip file saved to: $zipFile"
+                    [System.IO.File]::WriteAllBytes($zipFile, $byteArray)
                     $cleanedFilePath = $newFilePath -replace ".enc", ""
-                    Expand-Archive -Path $zipFile -DestinationPath "$currentDirectory/$cleanedFilePath"
+                    Expand-Archive -Path $zipFile -DestinationPath "$currentDirectory"
                     Write-Host "File unzipped"
                     break
                 }
@@ -194,11 +221,32 @@ while ($true)
                 Expand-Archive -Path $filepath -DestinationPath "$currentDirectory/$newFilePath"
                 Write-Host "File unzipped"
             }
-            9
+            9 {
+                Write-Host "Merge Files"
+                $currentDirectory = Get-Location
+                $filepath = Read-Host "Enter path to first file"
+                $filepath2 = Read-Host "Enter path to second file"
+                $newFilePath = Read-Host "Enter path to new file"
+
+                if (!(Get-If-File-Exists $filepath) -or !(Get-If-File-Exists $filepath2))
+                {
+                    throw "File doesn't exist"
+                }
+
+                $file1 = Get-Content $filepath
+                $file2 = Get-Content $filepath2
+                $combinedFile = $file1 + "`n" + $file2
+                $combinedFile | Out-File $newFilePath
+            }
+            10
             {
                 Write-Host "Exit Script"
                 exit
                 Write-Host "Script exitted"
+            }
+            11 {
+                # TODO: remove, just for testing
+                Set-Location "/home/$( whoami )/IdeaProjects/powershell-filemanager"
             }
             default
             {
@@ -208,7 +256,7 @@ while ($true)
     }
     catch
     {
-#        Write-Host "Error: $_" -ForegroundColor Red
+        #        Write-Host "Error: $_" -ForegroundColor Red
         Write-Error $_
     }
 
