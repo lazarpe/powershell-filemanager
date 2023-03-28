@@ -11,6 +11,7 @@ function Write-Menu()
     Write-Host "[9] Exit Script"
 }
 
+# This function prints out "Choice" and returns the user input.
 function Get-Menu-Choice()
 {
     return Read-Host "Choice"
@@ -25,8 +26,10 @@ function Get-File-Existance-State($filepath)
     return $false
 }
 
+# It runs until the user selects the 9th menu option to exit the application.
 while ($true)
 {
+    # Program prints out the menu and asks for the users action choice on every iteration.
     Write-Menu
     $choice = Get-Menu-Choice
     try
@@ -60,7 +63,7 @@ while ($true)
 
                 if (!(Get-File-Existance-State $oldFilePath))
                 {
-                    throw "Path does not exist! "
+                    throw "Path does not exist!"
                 }
                 elseif (Get-File-Existance-State $newFilePath)
                 {
